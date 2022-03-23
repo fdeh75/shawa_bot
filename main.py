@@ -227,7 +227,7 @@ def main() -> None:
 
     # Add command handler to start the payment invoice
     # dispatcher.add_handler(CommandHandler("shipping", start_with_shipping_callback))
-    dispatcher.add_handler(CommandHandler("noshipping", start_without_shipping_callback))
+    # dispatcher.add_handler(CommandHandler("noshipping", start_without_shipping_callback))
 
     # Optional handler if your product requires shipping
     dispatcher.add_handler(ShippingQueryHandler(shipping_callback))
