@@ -2,3 +2,5 @@
 API_TOKEN = "API_TOKEN"
 PAYMENT_TOKEN = "PAYMENT_TOKEN"
 CREATE_ORDER = "Хочу кушать!"
+# users ids
+MANAGERS_IDS = []

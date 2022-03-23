@@ -11,10 +11,10 @@ from telegram.ext import (
     ShippingQueryHandler,
     CallbackContext,
     CallbackQueryHandler)
+import json
+from config import API_TOKEN, PAYMENT_TOKEN, CREATE_ORDER, MANAGERS_IDS
 
 # Enable logging
-from config import API_TOKEN, PAYMENT_TOKEN, CREATE_ORDER
-
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO
 )
@@ -37,7 +37,11 @@ def start_callback(update: Update, context: CallbackContext) -> None:
 def send_with_shipping_invoice(products_count: int, chat_id: int, context: CallbackContext) -> None:
     title = "Ваш заказ"
     # select a payload just for you to recognize its the donation from your bot
-    payload = "Custom-Payload"
+    payload = json.dumps({
+        "type": 'shawa_bot_order',
+        "itemsCount": int(products_count)
+    })
+    # payload = "Custom-Payload"
     # In order to get a provider_token see https://core.telegram.org/bots/payments#getting-a-token
     provider_token = PAYMENT_TOKEN
     currency = "RUB"
@@ -93,7 +97,14 @@ def shipping_callback(update: Update, context: CallbackContext) -> None:
     """Answers the ShippingQuery with ShippingOptions"""
     query = update.shipping_query
     # check the payload, is this from your bot?
-    if query.invoice_payload != 'Custom-Payload':
+
+    invoice_type = None
+    try:
+        invoice_type = json.loads(query.invoice_payload)['type']
+    except Exception as e:
+        print(f"shipping_callback invoice_type detect err: {e}")
+
+    if invoice_type != 'shawa_bot_order':
         # answer False pre_checkout_query
         query.answer(ok=False, error_message="Something went wrong...")
         return
@@ -111,7 +122,13 @@ def precheckout_callback(update: Update, context: CallbackContext) -> None:
     """Answers the PreQecheckoutQuery"""
     query = update.pre_checkout_query
     # check the payload, is this from your bot?
-    if query.invoice_payload != 'Custom-Payload':
+    invoice_type = None
+    try:
+        invoice_type = json.loads(query.invoice_payload)['type']
+    except Exception as e:
+        print(f"shipping_callback invoice_type detect err: {e}")
+
+    if invoice_type != 'shawa_bot_order':
         # answer False pre_checkout_query
         query.answer(ok=False, error_message="Something went wrong...")
     else:
@@ -123,6 +140,40 @@ def successful_payment_callback(update: Update, context: CallbackContext) -> Non
     """Confirms the successful payment."""
     # do something after successfully receiving payment?
     update.message.reply_text("Спасибо за покупку, заходите к нам еще!")
+
+    need_shipping = update.message.effective_attachment.shipping_option_id == '1'
+
+    shipping_address = ""
+
+    if need_shipping:
+        shipping_address_obj = update.message.effective_attachment.order_info.shipping_address
+        shipping_address_data = f"""
+Страна: {shipping_address_obj.country_code}
+Город: {shipping_address_obj.city}
+Post code: {shipping_address_obj.post_code},
+Улица 1: {shipping_address_obj.street_line1},
+Улица 2: {shipping_address_obj.street_line2}
+"""
+        shipping_address = f"\nАдрес доставки: {shipping_address_data}"
+
+    items_count = "Не определено в следсвии ошибки, свяжитесь с пользователем для уточнения"
+    try:
+        items_count = json.loads(update.message.effective_attachment.invoice_payload)['itemsCount']
+    except Exception as e:
+        print("get itemsCount error!", e)
+
+    order_info = \
+        f"""Новый заказ! 
+Колличетсво шаверм: {items_count}
+Тип доставки: { 'Доставка' if need_shipping else 'Самовывоз'}
+Клиент: {update.message.effective_attachment.order_info.name}
+Клиент telegram: @{update.message.chat.username} 
+Клиент email: {update.message.effective_attachment.order_info.email}
+Клиент телефон: +{update.message.effective_attachment.order_info.phone_number}{shipping_address}
+"""
+
+    for manager_id in MANAGERS_IDS:
+        context.bot.send_message(manager_id, order_info)
 
 
 def get_products_list(update: Update, context: CallbackContext) -> None:
@@ -159,6 +210,10 @@ def button(update: Update, context: CallbackContext) -> None:
     send_with_shipping_invoice(products_count=query.data, chat_id=update.effective_message.chat_id, context=context)
 
 
+def any_message(update: Update, context: CallbackContext) -> None:
+    print(1234)
+
+
 def main() -> None:
     """Run the bot."""
     # Create the Updater and pass it your bot's token.
@@ -183,6 +238,8 @@ def main() -> None:
     # Success! Notify your user!
     dispatcher.add_handler(MessageHandler(Filters.successful_payment, successful_payment_callback))
     dispatcher.add_handler(MessageHandler(Filters.text(CREATE_ORDER), get_products_list))
+    dispatcher.add_handler(MessageHandler(Filters.text("*"), any_message))
+    dispatcher.add_handler(MessageHandler(Filters.contact, any_message))
     updater.dispatcher.add_handler(CallbackQueryHandler(button))
 
     # Start the Bot
