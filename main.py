@@ -111,7 +111,7 @@ def shipping_callback(update: Update, context: CallbackContext) -> None:
 
     # First option has a single LabeledPrice
     options = [
-        ShippingOption('1', 'Доставка', [LabeledPrice('Доставка', 50000)]),
+        ShippingOption('1', 'Доставка', [LabeledPrice('Доставка', 19000)]),
         ShippingOption('2', 'Без доставки', [LabeledPrice('Без доставки', 0)])
     ]
     query.answer(ok=True, shipping_options=options)
